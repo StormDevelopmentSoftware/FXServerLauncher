@@ -51,7 +51,7 @@
 			this.txtOutput.TabIndex = 0;
 			this.txtOutput.Text = "";
 			this.txtOutput.WordWrap = false;
-			this.txtOutput.TextChanged += new System.EventHandler(this.OnTextChanged);
+			this.txtOutput.TextChanged += new System.EventHandler(this.OnOutputTextChanged);
 			// 
 			// txtInput
 			// 
@@ -65,7 +65,7 @@
 			this.txtInput.TabIndex = 1;
 			this.txtInput.Text = "cmdlist";
 			this.txtInput.WordWrap = false;
-			this.txtInput.KeyUp += new System.Windows.Forms.KeyEventHandler(this.OnKeyUp);
+			this.txtInput.KeyUp += new System.Windows.Forms.KeyEventHandler(this.OnInputKeyUp);
 			// 
 			// _process
 			// 
@@ -83,15 +83,15 @@
 			this._process.StartInfo.UseShellExecute = false;
 			this._process.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
 			this._process.SynchronizingObject = this;
-			this._process.OutputDataReceived += new System.Diagnostics.DataReceivedEventHandler(this.NotifyOutputDataReceived);
-			this._process.ErrorDataReceived += new System.Diagnostics.DataReceivedEventHandler(this.NotifyOutputDataReceived);
-			this._process.Exited += new System.EventHandler(this.NotifyExit);
+			this._process.OutputDataReceived += new System.Diagnostics.DataReceivedEventHandler(this.OnProcessOutput);
+			this._process.ErrorDataReceived += new System.Diagnostics.DataReceivedEventHandler(this.OnProcessOutput);
+			this._process.Exited += new System.EventHandler(this.OnProcessExit);
 			// 
 			// _notify
 			// 
 			this._notify.Text = "FiveM: Dedicated Server";
 			this._notify.Visible = true;
-			this._notify.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this._notify_MouseDoubleClick);
+			this._notify.DoubleClick += new System.EventHandler(this.OnNotifyIconClick);
 			// 
 			// MainForm
 			// 
@@ -104,8 +104,8 @@
 			this.Name = "MainForm";
 			this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
 			this.Text = "FiveM: Dedicated Server";
-			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.NotifyFormClosing);
-			this.Load += new System.EventHandler(this.MainForm_Load);
+			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.OnFormClosing);
+			this.Load += new System.EventHandler(this.OnFormLoad);
 			this.ResumeLayout(false);
 			this.PerformLayout();
 

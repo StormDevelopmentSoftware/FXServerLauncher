@@ -12,14 +12,31 @@ namespace FXServerLauncher
 		[STAThread]
 		static void Main()
 		{
-			Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+			Application.ThreadException += OnThreadException;
+			Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);
-			
-			var mainform = new MainForm();
+			Application.Run(new MainForm());
+		}
 
-			using (mainform)
-				mainform.ShowDialog();
+		static void OnThreadException(object sender, ThreadExceptionEventArgs e)
+		{
+			var ex = e.Exception;
+
+			if(ex is AggregateException aggregateException)
+			{
+				if (aggregateException.InnerExceptions.Any(x => x is ObjectDisposedException))
+					return;
+			}
+
+			while (ex is AggregateException)
+				ex = ex.InnerException;
+
+			if (ex is ObjectDisposedException)
+				return;
+
+			MessageBox.Show(ex.ToString(), ex.Message,
+				MessageBoxButtons.OK, MessageBoxIcon.Error);
 		}
 	}
 }

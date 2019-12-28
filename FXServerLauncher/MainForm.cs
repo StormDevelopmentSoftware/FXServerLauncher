@@ -19,15 +19,16 @@ namespace FXServerLauncher
 		private Task _taskOutput;
 		private Task _taskError;
 		private CancellationTokenSource _cts;
-		private volatile bool _closing;
-		private volatile bool _quitSent;
+		private volatile bool _closing = false;
+		private volatile bool _shutdown = false;
+		private volatile bool _shutdownSignal = false;
 
 		public MainForm()
 		{
 			InitializeComponent();
 		}
 
-		protected void NotifyOutputDataReceived(object sender, DataReceivedEventArgs e)
+		protected void OnProcessOutput(object sender, DataReceivedEventArgs e)
 		{
 			if (string.IsNullOrEmpty(e.Data) && string.IsNullOrWhiteSpace(e.Data))
 				return;
@@ -37,10 +38,10 @@ namespace FXServerLauncher
 			if (message.ToLowerInvariant().Contains("authenticating with nucleus"))
 				return;
 
-			LogOutput(message);
+			Log(message);
 		}
 
-		protected void NotifyExit(object sender, EventArgs e)
+		protected void OnProcessExit(object sender, EventArgs e)
 		{
 			if (!_cts.IsCancellationRequested)
 				_cts.Cancel();
@@ -59,24 +60,25 @@ namespace FXServerLauncher
 						await Task.Delay(100);
 				}
 
-				_quitSent = true;
+				_shutdown = true;
 				_closing = true;
 				this.Call(() => Close());
 			});
 		}
 
-		void LogOutput(string message)
+		protected void Log(string message)
 		{
 			if (txtOutput.InvokeRequired)
-				txtOutput.Invoke(new Action<string>(LogOutput), message);
+				txtOutput.Invoke(new Action<string>(Log), new object[] { message });
 			else
 			{
 				message = Regex.Replace(message, @"\[[0-9]+m", string.Empty);
-				txtOutput.AppendText($"{message}{Environment.NewLine}");
+
+				txtOutput.AppendText($"[{DateTime.Now:HH:mm:ss}]: {message}{Environment.NewLine}");
 			}
 		}
 
-		private void MainForm_Load(object sender, EventArgs e)
+		private void OnFormLoad(object sender, EventArgs e)
 		{
 			Icon = _notify.Icon = Properties.Resources.fivem;
 
@@ -140,20 +142,27 @@ namespace FXServerLauncher
 
 				_process.Start();
 
-				_taskOutput = Task.Run(() => _process.BeginOutputReadLine(), _cts.Token);
-				_taskError = Task.Run(() => _process.BeginErrorReadLine(), _cts.Token);
-
-				Focus();
+				_taskOutput = Task.Factory.StartNew(() => _process.BeginOutputReadLine(), _cts.Token);
+				_taskError = Task.Factory.StartNew(() => _process.BeginErrorReadLine(), _cts.Token);
 			}
 		}
 
-		private void NotifyFormClosing(object sender, FormClosingEventArgs e)
+		private void OnFormClosing(object sender, FormClosingEventArgs e)
 		{
-			if (!_quitSent)
+			if (e.CloseReason == CloseReason.UserClosing)
 			{
-				_process.StandardInput.WriteLine("quit");
-				_process.StandardInput.Flush();
-				_quitSent = true;
+				if (!_shutdown)
+				{
+					if (!_shutdownSignal)
+					{
+						_process.StandardInput.WriteLine("quit");
+						_shutdownSignal = true;
+					}
+
+					_shutdown = true;
+				}
+
+				e.Cancel = true;
 			}
 
 			if (_closing)
@@ -162,12 +171,12 @@ namespace FXServerLauncher
 				e.Cancel = true;
 		}
 
-		private void OnTextChanged(object sender, EventArgs e)
+		private void OnOutputTextChanged(object sender, EventArgs e)
 		{
 			txtOutput.ScrollToCaret();
 		}
 
-		private void OnKeyUp(object sender, KeyEventArgs e)
+		private void OnInputKeyUp(object sender, KeyEventArgs e)
 		{
 			if (!txtInput.Enabled)
 				return;
@@ -181,29 +190,65 @@ namespace FXServerLauncher
 			var raw = txtInput.Text;
 			txtInput.Clear();
 
-			if (raw.Equals("quit", StringComparison.InvariantCultureIgnoreCase))
-				_quitSent = true;
+			if (raw.StartsWith("#"))
+			{
+				raw = raw.Substring(1);
 
-			if (!_cts.IsCancellationRequested)
-				_process.StandardInput.WriteLine(raw);
+				switch (raw)
+				{
+					case "clear":
+					txtOutput.Clear();
+					break;
+
+					case "uptime":
+					Log($"Process Uptime: {_process.StartTime.Subtract(DateTime.Now):hh\\:mm\\:ss}");
+					break;
+
+					case "threads":
+					Log($"Process Threads: #{_process.Threads?.Count ?? -1}");
+					break;
+
+					case "priority":
+					Log($"Process Priority: {_process.PriorityClass.ToString()}");
+					break;
+
+					case "pid":
+					Log($"Process Identifier: {_process.Id}");
+					break;
+
+					default:
+					goto forward;
+				}
+
+				return;
+			}
+
+			forward:
+			{
+
+				if (raw.Equals("quit", StringComparison.InvariantCultureIgnoreCase))
+					_shutdown = true;
+
+				if (!_cts.IsCancellationRequested)
+					_process.StandardInput.WriteLine(raw);
+			}
 		}
 
-		private volatile bool _hidden;
+		private volatile bool _isHidden = false;
 
-		private void _notify_MouseDoubleClick(object sender, MouseEventArgs e)
+		private void OnNotifyIconClick(object sender, EventArgs e)
 		{
-			if (_hidden)
+			if (_isHidden)
 			{
-				Visible = true;
 				ShowInTaskbar = true;
-				_hidden = false;
-				Update();
+				Opacity = 1f;
+				_isHidden = false;
 			}
 			else
 			{
-				Visible = false;
+				_isHidden = true;
 				ShowInTaskbar = false;
-				_hidden = true;
+				Opacity = 0f;
 			}
 		}
 	}
